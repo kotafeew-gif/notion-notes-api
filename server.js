@@ -1,6 +1,3 @@
-import dns from "node:dns";
-dns.setDefaultResultOrder("ipv4first");
-
 import express from "express";
 import dotenv from "dotenv";
 import { Client } from "@notionhq/client";
@@ -18,27 +15,40 @@ const DATABASE_ID = process.env.NOTION_DATABASE_ID;
 
 app.post("/notion/create-note", async (req, res) => {
   try {
-    console.log("BODY:", req.body);
-
-    const { title, content = "" } = req.body || {};
-
-    if (!title || typeof title !== "string") {
-      return res.status(400).json({
-        ok: false,
-        error: "title is required",
-      });
-    }
+    const {
+      title,
+      content = "",
+      type = "",
+      language = "",
+      genre = [],
+      prompt = "",
+      cover = "",
+      project = ""
+    } = req.body;
 
     const response = await notion.pages.create({
       parent: { database_id: DATABASE_ID },
       properties: {
-        Name: {
+        "Название": {
           title: [
-            {
-              text: { content: title },
-            },
-          ],
+            { text: { content: title } }
+          ]
         },
+        "Статус": {
+          select: { name: type }
+        },
+        "Язык": {
+          select: { name: language }
+        },
+        "Жанр": {
+          multi_select: genre.map(g => ({ name: g }))
+        },
+        "Проект": {
+          rich_text: [{ text: { content: project } }]
+        },
+        "Промпт Suno": {
+          rich_text: [{ text: { content: prompt } }]
+        }
       },
       children: content
         ? [
@@ -46,38 +56,45 @@ app.post("/notion/create-note", async (req, res) => {
               object: "block",
               type: "paragraph",
               paragraph: {
-                rich_text: [
-                  {
-                    type: "text",
-                    text: { content: content },
-                  },
-                ],
-              },
-            },
+                rich_text: [{ type: "text", text: { content } }]
+              }
+            }
           ]
-        : [],
+        : []
     });
+
+    // Добавляем обложку если есть
+    if (cover) {
+      await notion.blocks.children.append({
+        block_id: response.id,
+        children: [
+          {
+            object: "block",
+            type: "image",
+            image: {
+              type: "external",
+              external: { url: cover }
+            }
+          }
+        ]
+      });
+    }
 
     res.json({
       ok: true,
       url: response.url,
       id: response.id,
+      type,
+      language,
+      genre,
+      project,
+      prompt,
+      cover
     });
   } catch (e) {
-    console.error("FULL ERROR:", e);
-    console.error("MESSAGE:", e?.message);
-    console.error("CAUSE:", e?.cause);
-
-    res.status(500).json({
-      ok: false,
-      error: e?.message || "Unknown error",
-      cause: e?.cause ? String(e.cause) : null,
-    });
+    console.error(e);
+    res.json({ ok: false, error: e.message });
   }
-});
-
-app.get("/", (req, res) => {
-  res.send("Notion Notes API is running");
 });
 
 app.listen(3000, () => {
