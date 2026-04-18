@@ -23,41 +23,20 @@ app.post("/notion/create-note", async (req, res) => {
       genre = [],
       prompt = "",
       cover = "",
-      project = ""
+      notes = ""
     } = req.body;
 
     const response = await notion.pages.create({
       parent: { database_id: DATABASE_ID },
       properties: {
-        "Название": {
-          title: [
-            { text: { content: title } }
-          ]
-        },
-        "Статус": {
-          select: { name: type }
-        },
-        "Язык": {
-          select: { name: language }
-        },
-        "Жанр": {
-          multi_select: genre.map(g => ({ name: g }))
-        },
-        "Промпт Suno": {
-          rich_text: [{ text: { content: prompt } }]
-        }
-      },
-      children: content
-        ? [
-            {
-              object: "block",
-              type: "paragraph",
-              paragraph: {
-                rich_text: [{ type: "text", text: { content } }]
-              }
-            }
-          ]
-        : []
+        "Название": { title: [{ text: { content: title } }] },
+        "Статус": { select: { name: type } },
+        "Язык": { select: { name: language } },
+        "Жанр": { multi_select: genre.map(g => ({ name: g })) },
+        "Промпт Suno": { rich_text: [{ text: { content: prompt } }] },
+        "Текст песни": { rich_text: [{ text: { content } }] },
+        "Заметки": { rich_text: [{ text: { content: notes } }] }
+      }
     });
 
     // Добавляем обложку если есть
@@ -68,10 +47,7 @@ app.post("/notion/create-note", async (req, res) => {
           {
             object: "block",
             type: "image",
-            image: {
-              type: "external",
-              external: { url: cover }
-            }
+            image: { type: "external", external: { url: cover } }
           }
         ]
       });
@@ -84,9 +60,9 @@ app.post("/notion/create-note", async (req, res) => {
       type,
       language,
       genre,
-      project,
       prompt,
-      cover
+      cover,
+      notes
     });
   } catch (e) {
     console.error(e);
