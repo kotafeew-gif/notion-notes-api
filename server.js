@@ -13,7 +13,21 @@ const notion = new Client({
 
 const DATABASE_ID = process.env.NOTION_DATABASE_ID;
 
-app.post("/notion/create-note", async (req, res) => {
+// Поиск существующей страницы по названию
+async function findPageByTitle(title) {
+  const response = await notion.databases.query({
+    database_id: DATABASE_ID,
+    filter: {
+      property: "Название",
+      title: {
+        equals: title
+      }
+    }
+  });
+  return response.results[0]; // Возвращаем первую найденную запись
+}
+
+app.post("/notion/create-or-update-note", async (req, res) => {
   try {
     const {
       title,
@@ -26,44 +40,72 @@ app.post("/notion/create-note", async (req, res) => {
       notes = ""
     } = req.body;
 
-    const response = await notion.pages.create({
-      parent: { database_id: DATABASE_ID },
-      properties: {
-        "Название": { title: [{ text: { content: title } }] },
-        "Статус": { select: { name: type } },
-        "Язык": { select: { name: language } },
-        "Жанр": { multi_select: genre.map(g => ({ name: g })) },
-        "Промпт Suno": { rich_text: [{ text: { content: prompt } }] },
-        "Текст песни": { rich_text: [{ text: { content } }] },
-        "Заметки": { rich_text: [{ text: { content: notes } }] }
-      }
-    });
+    let page = await findPageByTitle(title);
 
-    // Добавляем обложку если есть
-    if (cover) {
-      await notion.blocks.children.append({
-        block_id: response.id,
-        children: [
-          {
-            object: "block",
-            type: "image",
-            image: { type: "external", external: { url: cover } }
-          }
-        ]
+    if (page) {
+      // Обновляем существующую страницу
+      await notion.pages.update({
+        page_id: page.id,
+        properties: {
+          "Статус": { select: { name: type } },
+          "Язык": { select: { name: language } },
+          "Жанр": { multi_select: genre.map(g => ({ name: g })) },
+          "Промпт Suno": { rich_text: [{ text: { content: prompt } }] },
+          "Текст песни": { rich_text: [{ text: { content } }] },
+          "Заметки": { rich_text: [{ text: { content: notes } }] }
+        }
+      });
+
+      if (cover) {
+        await notion.blocks.children.append({
+          block_id: page.id,
+          children: [
+            {
+              object: "block",
+              type: "image",
+              image: { type: "external", external: { url: cover } }
+            }
+          ]
+        });
+      }
+
+      return res.json({
+        ok: true,
+        url: page.url,
+        id: page.id,
+        message: "Updated existing song"
+      });
+    } else {
+      // Создаём новую запись
+      const newPage = await notion.pages.create({
+        parent: { database_id: DATABASE_ID },
+        properties: {
+          "Название": { title: [{ text: { content: title } }] },
+          "Статус": { select: { name: type } },
+          "Язык": { select: { name: language } },
+          "Жанр": { multi_select: genre.map(g => ({ name: g })) },
+          "Промпт Suno": { rich_text: [{ text: { content: prompt } }] },
+          "Текст песни": { rich_text: [{ text: { content } }] },
+          "Заметки": { rich_text: [{ text: { content: notes } }] }
+        },
+        children: cover
+          ? [
+              {
+                object: "block",
+                type: "image",
+                image: { type: "external", external: { url: cover } }
+              }
+            ]
+          : []
+      });
+
+      return res.json({
+        ok: true,
+        url: newPage.url,
+        id: newPage.id,
+        message: "Created new song"
       });
     }
-
-    res.json({
-      ok: true,
-      url: response.url,
-      id: response.id,
-      type,
-      language,
-      genre,
-      prompt,
-      cover,
-      notes
-    });
   } catch (e) {
     console.error(e);
     res.json({ ok: false, error: e.message });
