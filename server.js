@@ -43,9 +43,6 @@ app.post("/notion/create-note", async (req, res) => {
         "Жанр": {
           multi_select: genre.map(g => ({ name: g }))
         },
-        "Проект": {
-          rich_text: [{ text: { content: project } }]
-        },
         "Промпт Suno": {
           rich_text: [{ text: { content: prompt } }]
         }
