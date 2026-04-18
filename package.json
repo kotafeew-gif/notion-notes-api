@@ -1,0 +1,14 @@
+{
+  "name": "notion-notes-api",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node --dns-result-order=ipv4first server.js"
+  },
+  "dependencies": {
+    "@notionhq/client": "^2.0.0",
+    "dotenv": "^16.0.0",
+    "express": "^4.0.0"
+  }
+}
